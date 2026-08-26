@@ -53,6 +53,67 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+def _admin_only(update: Update) -> bool:
+    return update.effective_chat.id == ADMIN_CHAT_ID
+
+
+async def cmd_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanish: /add Savol matni | Javob matni"""
+    if not _admin_only(update):
+        return
+
+    raw = update.message.text.partition(" ")[2]  # "/add " dan keyingi qism
+    if "|" not in raw:
+        await update.message.reply_text(
+            "Noto'g'ri format. Shunday yozing:\n/add Savol matni | Javob matni"
+        )
+        return
+
+    question, _, answer = raw.partition("|")
+    question, answer = question.strip(), answer.strip()
+    if not question or not answer:
+        await update.message.reply_text(
+            "Savol yoki javob bo'sh bo'lmasligi kerak.\n/add Savol matni | Javob matni"
+        )
+        return
+
+    entry_id = db.add_faq(question, answer)
+    await update.message.reply_text(f"✅ Qo'shildi (№{entry_id}):\nSavol: {question}\nJavob: {answer}")
+
+
+async def cmd_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Barcha FAQ yozuvlarini ko'rsatadi."""
+    if not _admin_only(update):
+        return
+
+    rows = db.list_all_faq()
+    if not rows:
+        await update.message.reply_text("Hozircha FAQ bazasi bo'sh.")
+        return
+
+    lines = ["📋 FAQ ro'yxati (o'chirish uchun: /del <turi> <raqam>):\n"]
+    for source, entry_id, question, answer in rows:
+        lines.append(f"[{source} #{entry_id}] {question} → {answer}")
+    # Telegram bitta xabarga ~4096 belgi sig'diradi, shuning uchun bo'lib yuboramiz
+    message = "\n".join(lines)
+    for chunk_start in range(0, len(message), 3500):
+        await update.message.reply_text(message[chunk_start:chunk_start + 3500])
+
+
+async def cmd_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Foydalanish: /del faq 3  yoki  /del learned 5 (raqamni /list dan oling)"""
+    if not _admin_only(update):
+        return
+
+    parts = update.message.text.split()
+    if len(parts) != 3 or parts[1] not in ("faq", "learned") or not parts[2].isdigit():
+        await update.message.reply_text("Foydalanish: /del faq 3  yoki  /del learned 5")
+        return
+
+    db.delete_faq(parts[1], int(parts[2]))
+    await update.message.reply_text("🗑 O'chirildi.")
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     text = update.message.text or ""
@@ -142,6 +203,9 @@ def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("add", cmd_add))
+    app.add_handler(CommandHandler("list", cmd_list))
+    app.add_handler(CommandHandler("del", cmd_del))
     app.add_handler(CallbackQueryHandler(handle_save_choice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 

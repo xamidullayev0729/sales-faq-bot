@@ -47,6 +47,37 @@ SEED_FAQ = [
 ]
 
 
+# Oddiy muloqot (salomlashish, minnatdorchilik va h.k.) — bularga bot
+# hech qanday admin signalisiz, to'g'ridan-to'g'ri o'zi javob beradi.
+# Har bir kalit so'z mijoz xabarida uchrasa, mos javob qaytariladi.
+SMALL_TALK = [
+    (
+        ["salom", "assalomu alaykum", "salomlar", "hi", "hello", "hey"],
+        "Assalomu alaykum! Sizga qanday yordam bera olaman?",
+    ),
+    (
+        ["rahmat", "raxmat", "tashakkur", "thanks", "rahmatlar"],
+        "Arzimaydi! Boshqa savolingiz bo'lsa, yozavering.",
+    ),
+    (
+        ["xayr", "ko'rishguncha", "bye", "hayr"],
+        "Xayr! Yana savolingiz bo'lsa, shu yerdaman.",
+    ),
+    (
+        ["yaxshimisiz", "qalaysiz", "yahshimisiz", "qalesiz", "how are you"],
+        "Rahmat, hammasi zo'r! Sizga qanday yordam bera olaman?",
+    ),
+]
+
+
+def find_small_talk_reply(text: str) -> str | None:
+    lowered = text.lower()
+    for keywords, reply in SMALL_TALK:
+        if any(keyword in lowered for keyword in keywords):
+            return reply
+    return None
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Assalomu alaykum! Savolingizni yozing, imkon qadar tezroq javob beramiz."
@@ -157,6 +188,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Holat 2: oddiy mijoz xabari ---
     if chat_id == ADMIN_CHAT_ID:
         return  # admin o'zi botga oddiy yozsa, hech narsa qilmaymiz
+
+    small_talk_reply = find_small_talk_reply(text)
+    if small_talk_reply:
+        await update.message.reply_text(small_talk_reply)
+        return
 
     answer = db.find_answer(text)
     if answer:
